@@ -1,0 +1,1315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dash PMT — Property Management</title>
+
+<!--
+=============================================================
+  DASH PROPERTY MANAGEMENT INC.
+  Rental Inventory + CRM — Google Sheets Edition
+  
+  SETUP INSTRUCTIONS
+  ------------------
+  1. Replace YOUR_GOOGLE_CLIENT_ID_HERE below with your
+     OAuth 2.0 Client ID from Google Cloud Console.
+  
+  2. In Google Cloud Console → APIs & Services → Credentials
+     → your OAuth Client → Authorised JavaScript origins,
+     add the URL where you host this file.
+     e.g. https://yourdomain.com  OR  file:// for local testing
+  
+  3. Enable these two APIs in Google Cloud Console:
+     - Google Sheets API
+     - Google Drive API
+  
+  4. Share this HTML file with your team (host on Google Drive,
+     GitHub Pages, or any web server). Each team member signs
+     in with their own Google account.
+  
+  5. On first sign-in, the app auto-creates a Google Sheet
+     called "Dash PMT — Property Database" in the signed-in
+     user's Drive and shares it. Point all team members to the
+     SAME sheet by copying the Sheet ID from the URL after
+     first run and pasting it into SHEET_ID_OVERRIDE below.
+=============================================================
+-->
+
+<script>
+  // ── CONFIGURATION ──────────────────────────────────────────
+  var CLIENT_ID = '460668493884-9lui3sufm3o4t3ks9lkp33cb3le0iskb.apps.googleusercontent.com';
+
+  // After first run, copy the Sheet ID from the browser console
+  // or from the Google Sheets URL and paste it here so all
+  // team members share one sheet. Leave blank on first run.
+  var SHEET_ID_OVERRIDE = '';
+
+  var SCOPES = 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file';
+  var SHEET_TITLE = 'Dash PMT \u2014 Property Database';
+  // ───────────────────────────────────────────────────────────
+</script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:        #F5F4F0;
+  --surface:   #FFFFFF;
+  --surface2:  #EFEDE8;
+  --border:    #E0DDD7;
+  --border2:   #CCCAC3;
+  --text:      #1A1916;
+  --text2:     #6B6962;
+  --text3:     #A09D97;
+  --accent:    #1A1916;
+  --green:     #2D6A4F;
+  --green-bg:  #D8F3DC;
+  --red:       #A4262C;
+  --red-bg:    #FCE4E4;
+  --amber:     #7D5A00;
+  --amber-bg:  #FFF3CD;
+  --blue:      #1A4A7A;
+  --blue-bg:   #D6E8FA;
+  --radius:    8px;
+  --radius-lg: 12px;
+  font-family: 'DM Sans', sans-serif;
+}
+
+body { background: var(--bg); color: var(--text); min-height: 100vh; font-size: 14px; line-height: 1.5; }
+
+/* ── AUTH SCREEN ── */
+.auth-screen {
+  min-height: 100vh; display: flex; align-items: center; justify-content: center;
+  background: var(--bg);
+}
+.auth-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 48px 40px; width: 360px;
+  text-align: center; box-shadow: 0 2px 20px rgba(0,0,0,.06);
+}
+.auth-logo { font-size: 11px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--text2); margin-bottom: 6px; }
+.auth-title { font-size: 22px; font-weight: 600; color: var(--text); margin-bottom: 8px; }
+.auth-sub { font-size: 13px; color: var(--text2); margin-bottom: 32px; line-height: 1.6; }
+.auth-note { font-size: 11px; color: var(--text3); margin-top: 20px; line-height: 1.6; }
+
+/* ── APP SHELL ── */
+.app { display: flex; height: 100vh; overflow: hidden; }
+
+/* ── SIDEBAR ── */
+.sidebar {
+  width: 210px; flex-shrink: 0; background: var(--surface);
+  border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden;
+}
+.sidebar-top { padding: 20px 18px 14px; border-bottom: 1px solid var(--border); }
+.sidebar-logo { font-size: 11px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--text2); }
+.sidebar-sub { font-size: 10px; color: var(--text3); margin-top: 2px; }
+.sidebar-user { display: flex; align-items: center; gap: 8px; margin-top: 14px; padding: 8px 10px; background: var(--surface2); border-radius: var(--radius); }
+.user-avatar { width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: white; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; flex-shrink: 0; }
+.user-name { font-size: 11px; font-weight: 500; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sidebar-nav { flex: 1; padding: 10px 0; overflow-y: auto; }
+.nav-section { padding: 12px 18px 4px; font-size: 9px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--text3); }
+.nav-item {
+  display: flex; align-items: center; gap: 9px; padding: 8px 18px;
+  cursor: pointer; font-size: 12px; font-weight: 400; color: var(--text2);
+  border-left: 2px solid transparent; transition: all .12s;
+}
+.nav-item svg { width: 14px; height: 14px; flex-shrink: 0; }
+.nav-item:hover { background: var(--surface2); color: var(--text); }
+.nav-item.active { background: var(--surface2); color: var(--text); border-left: 2px solid var(--accent); font-weight: 500; }
+.sidebar-footer { padding: 12px 18px; border-top: 1px solid var(--border); }
+.save-status { display: flex; align-items: center; gap: 6px; font-size: 10px; color: var(--text3); }
+.save-dot { width: 6px; height: 6px; border-radius: 50%; background: #2D6A4F; transition: background .3s; flex-shrink: 0; }
+.save-dot.saving { background: #C77D00; }
+.save-dot.error { background: var(--red); }
+
+/* ── MAIN ── */
+.main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.topbar {
+  height: 50px; border-bottom: 1px solid var(--border); background: var(--surface);
+  display: flex; align-items: center; padding: 0 24px; gap: 10px; flex-shrink: 0;
+}
+.page-title { font-size: 14px; font-weight: 600; flex: 1; }
+.sheet-link { font-size: 10px; color: var(--text3); font-family: 'DM Mono', monospace; cursor: pointer; text-decoration: underline; }
+.sheet-link:hover { color: var(--blue); }
+
+/* ── BUTTONS ── */
+.btn {
+  display: inline-flex; align-items: center; gap: 5px; padding: 7px 14px;
+  border-radius: var(--radius); border: 1px solid var(--border2);
+  background: transparent; color: var(--text); font-size: 12px; font-weight: 500;
+  cursor: pointer; transition: background .12s; font-family: 'DM Sans', sans-serif;
+}
+.btn:hover { background: var(--surface2); }
+.btn-primary { background: var(--accent); color: white; border-color: transparent; }
+.btn-primary:hover { opacity: .88; background: var(--accent); }
+.btn-danger { color: var(--red); border-color: var(--red-bg); }
+.btn-danger:hover { background: var(--red-bg); }
+.btn-sm { padding: 4px 10px; font-size: 11px; }
+.btn-google {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  width: 100%; padding: 11px 16px; border-radius: var(--radius); border: 1px solid var(--border2);
+  background: white; color: var(--text); font-size: 13px; font-weight: 500; cursor: pointer;
+  transition: background .12s; font-family: 'DM Sans', sans-serif;
+}
+.btn-google:hover { background: var(--surface2); }
+.btn-signout { width: 100%; font-size: 11px; color: var(--text3); margin-top: 6px; }
+
+/* ── CONTENT ── */
+.content { flex: 1; overflow-y: auto; padding: 24px; }
+
+/* ── KPI GRID ── */
+.kpi-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; margin-bottom: 22px; }
+.kpi { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 14px 16px; }
+.kpi-label { font-size: 11px; color: var(--text2); font-weight: 500; margin-bottom: 6px; letter-spacing: .03em; }
+.kpi-value { font-size: 22px; font-weight: 600; color: var(--text); letter-spacing: -.02em; }
+.kpi-sub { font-size: 11px; color: var(--text3); margin-top: 4px; }
+.kpi-up { color: var(--green); }
+.kpi-dn { color: var(--red); }
+
+/* ── DASHBOARD GRID ── */
+.dash-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 16px; }
+.card-title { font-size: 10px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--text3); margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center; }
+
+/* ── FILTER BAR ── */
+.filter-bar { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; align-items: center; }
+.filter-input, .filter-select {
+  font-size: 12px; padding: 7px 10px; border-radius: var(--radius);
+  border: 1px solid var(--border2); background: var(--surface);
+  color: var(--text); font-family: 'DM Sans', sans-serif; cursor: pointer;
+}
+.filter-input { flex: 1; min-width: 180px; }
+.filter-input:focus, .filter-select:focus { outline: none; border-color: var(--accent); }
+
+/* ── TABLE ── */
+.table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: auto; }
+.data-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.data-table th { text-align: left; padding: 9px 12px; font-size: 10px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text3); border-bottom: 1px solid var(--border); background: var(--surface2); }
+.data-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.data-table tr:last-child td { border-bottom: none; }
+.data-table tbody tr:hover td { background: #FAFAF8; }
+.data-table td.mono { font-family: 'DM Mono', monospace; font-size: 11px; }
+
+/* ── BADGES ── */
+.badge { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 20px; }
+.badge::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+.badge-occupied { background: var(--green-bg); color: var(--green); }
+.badge-vacant { background: var(--red-bg); color: var(--red); }
+.badge-pending { background: var(--amber-bg); color: var(--amber); }
+.badge-notice { background: var(--blue-bg); color: var(--blue); }
+.tag { display: inline-flex; font-size: 9px; font-weight: 600; padding: 2px 6px; border-radius: 20px; }
+.tag-web { background: var(--blue-bg); color: var(--blue); }
+.tag-ref { background: var(--green-bg); color: var(--green); }
+.tag-kij { background: var(--amber-bg); color: var(--amber); }
+.tag-hot { background: var(--red-bg); color: var(--red); }
+.tag-other { background: var(--surface2); color: var(--text2); }
+
+/* ── FORM PANEL ── */
+.form-panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px; margin-bottom: 18px; display: none; }
+.form-panel.open { display: block; }
+.form-panel-title { font-size: 14px; font-weight: 600; margin-bottom: 16px; }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+.form-row label { display: block; font-size: 10px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--text2); margin-bottom: 5px; }
+.form-row input, .form-row select, .form-row textarea {
+  width: 100%; font-size: 12px; padding: 8px 10px; border-radius: var(--radius);
+  border: 1px solid var(--border2); background: var(--surface2); color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+}
+.form-row input:focus, .form-row select:focus, .form-row textarea:focus { outline: none; border-color: var(--accent); background: var(--surface); }
+.form-row textarea { resize: vertical; min-height: 60px; }
+.form-actions { display: flex; gap: 8px; }
+
+/* ── KANBAN ── */
+.kanban-wrap { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 10px; min-height: 400px; align-items: flex-start; }
+.kanban-col { flex: 0 0 192px; background: var(--surface2); border-radius: var(--radius-lg); padding: 12px; }
+.kanban-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.kanban-stage { font-size: 10px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--text2); }
+.kanban-count { font-size: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 1px 7px; color: var(--text2); }
+.lead-card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 10px; margin-bottom: 7px; cursor: pointer; transition: border-color .12s, box-shadow .12s;
+}
+.lead-card:hover { border-color: var(--border2); box-shadow: 0 2px 8px rgba(0,0,0,.06); }
+.lead-card.selected { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(26,25,22,.08); }
+.lead-name { font-size: 12px; font-weight: 600; margin-bottom: 3px; }
+.lead-unit { font-size: 10px; color: var(--text2); margin-bottom: 5px; }
+.lead-tags { display: flex; gap: 3px; flex-wrap: wrap; }
+.lead-date { font-size: 9px; color: var(--text3); margin-top: 5px; }
+
+/* ── LEAD PANEL ── */
+.lead-panel {
+  width: 300px; flex-shrink: 0; border-left: 1px solid var(--border);
+  background: var(--surface); display: flex; flex-direction: column; overflow: hidden;
+}
+.panel-header { padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+.panel-avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--accent); color: white; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; flex-shrink: 0; }
+.panel-name { font-size: 13px; font-weight: 600; }
+.panel-sub { font-size: 10px; color: var(--text2); margin-top: 1px; }
+.panel-tabs { display: flex; border-bottom: 1px solid var(--border); }
+.panel-tab { flex: 1; padding: 10px 0; font-size: 11px; text-align: center; cursor: pointer; color: var(--text2); border-bottom: 2px solid transparent; font-weight: 500; transition: color .12s; }
+.panel-tab:hover { color: var(--text); }
+.panel-tab.active { color: var(--text); border-bottom: 2px solid var(--accent); }
+.panel-body { flex: 1; overflow-y: auto; padding: 14px 16px; }
+.info-row { display: flex; justify-content: space-between; align-items: flex-start; padding: 5px 0; border-bottom: 1px solid var(--border); font-size: 11px; }
+.info-row:last-of-type { border-bottom: none; }
+.info-label { color: var(--text2); font-weight: 500; flex-shrink: 0; }
+.info-value { text-align: right; color: var(--text); max-width: 160px; word-break: break-word; }
+.info-value.link { color: var(--blue); }
+.note-item { background: var(--surface2); border-radius: var(--radius); padding: 8px 10px; font-size: 11px; line-height: 1.5; margin-bottom: 7px; }
+.note-meta { font-size: 9px; color: var(--text3); margin-top: 4px; }
+.stage-btns { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 12px; }
+.compose-area {
+  width: 100%; font-size: 11px; padding: 8px 10px; border-radius: var(--radius);
+  border: 1px solid var(--border2); background: var(--surface2); color: var(--text);
+  font-family: 'DM Sans', sans-serif; resize: vertical; min-height: 80px;
+}
+.compose-area:focus { outline: none; border-color: var(--accent); background: var(--surface); }
+.email-actions { display: flex; gap: 6px; margin-top: 8px; }
+
+/* ── PIPELINE MINI ── */
+.pipeline-row { display: flex; }
+.pipe-stage { flex: 1; text-align: center; padding: 8px 4px; }
+.pipe-stage:not(:last-child) { border-right: 1px solid var(--border); }
+.pipe-num { font-size: 20px; font-weight: 600; }
+.pipe-lbl { font-size: 9px; text-transform: uppercase; letter-spacing: .06em; color: var(--text3); margin-top: 2px; }
+
+/* ── ACTIVITY FEED ── */
+.feed-item { display: flex; gap: 9px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.feed-item:last-child { border-bottom: none; }
+.feed-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+.feed-dot.g { background: var(--green); }
+.feed-dot.b { background: var(--blue); }
+.feed-dot.a { background: var(--amber); }
+.feed-text { font-size: 11px; line-height: 1.5; }
+.feed-time { font-size: 10px; color: var(--text3); }
+
+/* ── BAR ROWS ── */
+.bar-row { display: flex; justify-content: space-between; align-items: center; font-size: 11px; margin-bottom: 8px; }
+.bar-track { width: 80px; height: 5px; background: var(--surface2); border-radius: 3px; overflow: hidden; }
+.bar-fill { height: 100%; border-radius: 3px; }
+
+/* ── MODAL ── */
+.modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.3); z-index: 200; align-items: center; justify-content: center; }
+.modal-bg.open { display: flex; }
+.modal { background: var(--surface); border-radius: var(--radius-lg); border: 1px solid var(--border); width: 400px; max-width: 96vw; overflow: hidden; box-shadow: 0 8px 40px rgba(0,0,0,.12); }
+.modal-header { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+.modal-header h3 { font-size: 14px; font-weight: 600; }
+.modal-close { background: none; border: none; font-size: 18px; cursor: pointer; color: var(--text2); line-height: 1; }
+.modal-body { padding: 20px; }
+.modal-footer { padding: 12px 20px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; }
+
+/* ── TOAST ── */
+.toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--accent); color: white; font-size: 12px; padding: 10px 18px; border-radius: var(--radius-lg); z-index: 400; opacity: 0; transition: opacity .25s; pointer-events: none; white-space: nowrap; font-family: 'DM Sans', sans-serif; }
+.toast.show { opacity: 1; }
+
+/* ── LOADING ── */
+.loading { position: fixed; inset: 0; background: var(--bg); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; z-index: 500; }
+.spinner { width: 28px; height: 28px; border: 2px solid var(--border2); border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-text { font-size: 13px; color: var(--text2); }
+
+/* ── SETUP NOTICE ── */
+.setup-notice { background: var(--amber-bg); border: 1px solid #E8C84A; border-radius: var(--radius); padding: 12px 16px; margin-bottom: 20px; font-size: 12px; color: var(--amber); line-height: 1.6; }
+.setup-notice strong { display: block; font-size: 13px; margin-bottom: 4px; }
+
+/* ── RESPONSIVE ── */
+@media (max-width: 900px) {
+  .kpi-grid { grid-template-columns: 1fr 1fr; }
+  .dash-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+  .sidebar { width: 52px; }
+  .sidebar-top, .sidebar-footer, .nav-section, .nav-item span, .sidebar-logo, .sidebar-sub, .user-name, .save-status span { display: none; }
+  .nav-item { padding: 12px; justify-content: center; }
+  .user-avatar { margin: 0 auto; }
+}
+</style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div class="loading" id="loading">
+  <div class="spinner"></div>
+  <div class="loading-text" id="loading-text">Initialising…</div>
+</div>
+
+<!-- AUTH SCREEN -->
+<div class="auth-screen" id="auth-screen" style="display:none">
+  <div class="auth-card">
+    <div class="auth-logo">Dash Property Management Inc.</div>
+    <div class="auth-title">Property &amp; CRM</div>
+    <div class="auth-sub">Sign in with your Google account to access the shared property database, leads pipeline, and team tools.</div>
+    <button class="btn-google" onclick="signIn()">
+      <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/><path fill="#FBBC05" d="M3.964 10.707c-.18-.54-.282-1.117-.282-1.707s.102-1.167.282-1.707V4.961H.957C.347 6.175 0 7.548 0 9s.348 2.825.957 4.039l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.961L3.964 7.293C4.672 5.166 6.656 3.58 9 3.58z"/></svg>
+      Sign in with Google
+    </button>
+    <div class="auth-note">Your data is stored in a Google Sheet in your Drive. Each team member signs in individually. No data is stored by this app.</div>
+  </div>
+</div>
+
+<!-- APP -->
+<div class="app" id="app" style="display:none">
+  <!-- SIDEBAR -->
+  <nav class="sidebar">
+    <div class="sidebar-top">
+      <div class="sidebar-logo">Dash PMT</div>
+      <div class="sidebar-sub">Property Management Inc.</div>
+      <div class="sidebar-user">
+        <div class="user-avatar" id="user-initials">?</div>
+        <div class="user-name" id="user-name-display">—</div>
+      </div>
+    </div>
+    <div class="sidebar-nav">
+      <div class="nav-section">Overview</div>
+      <div class="nav-item active" id="nav-dashboard" onclick="showView('dashboard')">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="1" width="6" height="6" rx="1.5"/><rect x="9" y="1" width="6" height="6" rx="1.5"/><rect x="1" y="9" width="6" height="6" rx="1.5"/><rect x="9" y="9" width="6" height="6" rx="1.5"/></svg>
+        <span>Dashboard</span>
+      </div>
+      <div class="nav-section">Inventory</div>
+      <div class="nav-item" id="nav-units" onclick="showView('units')">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="1" width="12" height="14" rx="1.5"/><line x1="5" y1="5" x2="11" y2="5"/><line x1="5" y1="8" x2="11" y2="8"/><line x1="5" y1="11" x2="9" y2="11"/></svg>
+        <span>Units</span>
+      </div>
+      <div class="nav-section">CRM</div>
+      <div class="nav-item" id="nav-crm" onclick="showView('crm')">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="5" r="3"/><path d="M2 14c0-3.3 2.7-6 6-6s6 2.7 6 6"/></svg>
+        <span>Leads</span>
+      </div>
+      <div class="nav-item" id="nav-cal" onclick="openCalModal()">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="3" width="14" height="12" rx="1.5"/><line x1="5" y1="1" x2="5" y2="5"/><line x1="11" y1="1" x2="11" y2="5"/><line x1="1" y1="7" x2="15" y2="7"/></svg>
+        <span>Calendar</span>
+      </div>
+      <div class="nav-section">Data</div>
+      <div class="nav-item" onclick="syncNow()">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="1,4 1,1 4,1"/><polyline points="15,12 15,15 12,15"/><path d="M1 1 A7 7 0 0 1 15 8"/><path d="M15 15 A7 7 0 0 1 1 8"/></svg>
+        <span>Sync Now</span>
+      </div>
+      <div class="nav-item" onclick="exportCSV()">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2v9M5 8l3 3 3-3"/><path d="M2 13h12"/></svg>
+        <span>Export CSV</span>
+      </div>
+    </div>
+    <div class="sidebar-footer">
+      <div class="save-status"><div class="save-dot" id="save-dot"></div><span id="save-label">Synced with Sheets</span></div>
+      <button class="btn btn-sm" style="width:100%;margin-top:8px;font-size:10px;color:var(--text2)" onclick="signOut()">Sign out</button>
+    </div>
+  </nav>
+
+  <!-- MAIN -->
+  <div class="main">
+    <div class="topbar">
+      <div class="page-title" id="page-title">Dashboard</div>
+      <span class="sheet-link" id="sheet-link" onclick="openSheet()" title="Open Google Sheet">Open in Sheets ↗</span>
+      <button class="btn btn-primary" id="primary-btn" onclick="primaryAction()">+ Add Unit</button>
+    </div>
+
+    <div style="flex:1;overflow:hidden;display:flex">
+
+      <!-- DASHBOARD VIEW -->
+      <div id="view-dashboard" class="content" style="flex:1;overflow-y:auto">
+        <div id="setup-notice" class="setup-notice" style="display:none">
+          <strong>First-run setup</strong>
+          A new Google Sheet has been created in your Drive called "<strong>Dash PMT — Property Database</strong>". Copy the Sheet ID from the URL and paste it into the <code>SHEET_ID_OVERRIDE</code> variable in this file so all team members share the same sheet.
+          Sheet ID: <strong id="notice-sheet-id">—</strong>
+        </div>
+        <div class="kpi-grid">
+          <div class="kpi"><div class="kpi-label">Total Units</div><div class="kpi-value" id="kpi-total">—</div><div class="kpi-sub" id="kpi-blds">—</div></div>
+          <div class="kpi"><div class="kpi-label">Occupancy Rate</div><div class="kpi-value" id="kpi-occ">—</div><div class="kpi-sub kpi-up" id="kpi-occ-sub">—</div></div>
+          <div class="kpi"><div class="kpi-label">Monthly Revenue</div><div class="kpi-value" id="kpi-rev">—</div><div class="kpi-sub">Occupied units</div></div>
+          <div class="kpi"><div class="kpi-label">Active Leads</div><div class="kpi-value" id="kpi-leads">—</div><div class="kpi-sub" id="kpi-hot">—</div></div>
+        </div>
+        <div class="dash-grid">
+          <div class="card">
+            <div class="card-title">Lead Pipeline <button class="btn btn-sm" onclick="showView('crm')">View →</button></div>
+            <div class="pipeline-row" id="dash-pipe"></div>
+            <div style="margin-top:14px">
+              <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);margin-bottom:4px"><span>Conversion rate</span><span id="dash-conv">—</span></div>
+              <div style="height:5px;background:var(--surface2);border-radius:3px;overflow:hidden"><div id="dash-conv-bar" style="height:100%;background:var(--green);border-radius:3px;width:0"></div></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">Vacancy Overview <button class="btn btn-sm" onclick="showView('units')">View →</button></div>
+            <div id="dash-vac"></div>
+          </div>
+          <div class="card" style="grid-column:1/-1">
+            <div class="card-title">Recent Activity</div>
+            <div id="dash-feed"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- UNITS VIEW -->
+      <div id="view-units" style="display:none;flex:1;overflow-y:auto;padding:24px">
+        <div class="form-panel" id="unit-form">
+          <div class="form-panel-title" id="unit-form-title">Add New Unit</div>
+          <div class="form-grid">
+            <div class="form-row"><label>Building / Address</label><input id="f-bld" placeholder="e.g. SXSW1 — Vaughan CC"></div>
+            <div class="form-row"><label>Unit No.</label><input id="f-unt" placeholder="e.g. 204"></div>
+            <div class="form-row"><label>Bedrooms</label><select id="f-beds"><option>Studio</option><option>1B</option><option selected>2B</option><option>3B</option><option>4B</option></select></div>
+            <div class="form-row"><label>Monthly Rent ($)</label><input type="number" id="f-rent" placeholder="2500"></div>
+            <div class="form-row"><label>Status</label><select id="f-stat"><option>Vacant</option><option>Occupied</option><option>Pending</option><option>Notice</option></select></div>
+            <div class="form-row"><label>Tenant Name</label><input id="f-ten" placeholder="Current tenant if applicable"></div>
+            <div class="form-row"><label>Available From</label><input type="date" id="f-avl"></div>
+            <div class="form-row"><label>Notes</label><input id="f-note" placeholder="Any additional notes"></div>
+          </div>
+          <div class="form-actions">
+            <button class="btn btn-primary" onclick="saveUnit()">Save to Google Sheets</button>
+            <button class="btn" onclick="closeUnitForm()">Cancel</button>
+          </div>
+        </div>
+        <div class="filter-bar">
+          <input class="filter-input" placeholder="Search units, tenant, building…" id="u-search" oninput="renderUnits()">
+          <select class="filter-select" id="u-stat" onchange="renderUnits()"><option value="">All Status</option><option>Occupied</option><option>Vacant</option><option>Pending</option><option>Notice</option></select>
+          <select class="filter-select" id="u-bld" onchange="renderUnits()"><option value="">All Buildings</option></select>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead><tr><th>Unit</th><th>Building</th><th>Beds</th><th>Rent</th><th>Status</th><th>Tenant</th><th>Available</th><th>Notes</th><th>By</th><th></th></tr></thead>
+            <tbody id="u-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- CRM VIEW -->
+      <div id="view-crm" style="display:none;flex:1;overflow:hidden;flex-direction:column">
+        <div style="padding:12px 24px 0;display:flex;gap:8px;align-items:center;flex-shrink:0">
+          <input class="filter-input" style="max-width:220px" placeholder="Search leads…" id="l-search" oninput="renderLeads()">
+          <select class="filter-select" id="l-src" onchange="renderLeads()"><option value="">All Sources</option><option>Web enquiry</option><option>Referral</option><option>Kijiji</option><option>Walk-in</option><option>Other</option></select>
+        </div>
+        <div style="flex:1;overflow:hidden;display:flex">
+          <div style="flex:1;overflow:auto;padding:12px 24px">
+            <div class="kanban-wrap" id="kanban"></div>
+          </div>
+          <div class="lead-panel" id="lead-panel" style="display:none">
+            <div class="panel-header">
+              <div class="panel-avatar" id="p-ava">?</div>
+              <div style="flex:1;min-width:0">
+                <div class="panel-name" id="p-name">—</div>
+                <div class="panel-sub" id="p-sub">—</div>
+              </div>
+              <button class="btn btn-sm" onclick="closePanel()">✕</button>
+            </div>
+            <div class="panel-tabs">
+              <div class="panel-tab active" onclick="pTab(this,'info')">Info</div>
+              <div class="panel-tab" onclick="pTab(this,'notes')">Notes</div>
+              <div class="panel-tab" onclick="pTab(this,'email')">Email</div>
+            </div>
+            <div class="panel-body" id="p-info"></div>
+            <div class="panel-body" id="p-notes" style="display:none"></div>
+            <div class="panel-body" id="p-email" style="display:none">
+              <div style="font-size:11px;color:var(--text2);margin-bottom:8px">Gmail draft to <strong id="p-email-to">—</strong></div>
+              <select class="filter-select" id="e-tmpl" style="width:100%;margin-bottom:7px;font-size:11px" onchange="applyTmpl(this.value)">
+                <option value="">— Choose template —</option>
+                <option value="showing">Showing confirmation</option>
+                <option value="followup">Application follow-up</option>
+                <option value="welcome">Welcome &amp; next steps</option>
+                <option value="decline">Polite decline</option>
+              </select>
+              <input class="filter-input" id="e-subj" placeholder="Subject…" style="width:100%;margin-bottom:7px;font-size:11px">
+              <textarea class="compose-area" id="e-body"></textarea>
+              <div class="email-actions">
+                <button class="btn btn-primary" style="flex:1;font-size:11px" onclick="sendEmail()">Send via Gmail</button>
+                <button class="btn" style="font-size:11px" onclick="openCalModal()">Book Tour</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- CALENDAR MODAL -->
+<div class="modal-bg" id="cal-modal">
+  <div class="modal">
+    <div class="modal-header"><h3>Book Showing — Google Calendar</h3><button class="modal-close" onclick="closeModal('cal-modal')">✕</button></div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-row" style="grid-column:1/-1"><label>Guest / Lead Name & Email</label><input id="c-guest" placeholder="Name &lt;email@domain.com&gt;"></div>
+        <div class="form-row" style="grid-column:1/-1"><label>Unit Address</label><input id="c-unit" placeholder="e.g. SXSW1-308, 4 Interchange Way"></div>
+        <div class="form-row"><label>Date &amp; Time</label><input type="datetime-local" id="c-dt"></div>
+        <div class="form-row"><label>Duration</label><select id="c-dur"><option value="30">30 min</option><option value="45">45 min</option><option value="60" selected>1 hour</option></select></div>
+        <div class="form-row" style="grid-column:1/-1"><label>Notes</label><textarea id="c-notes" placeholder="Any special instructions for the showing…"></textarea></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('cal-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveCalEvent()">Create in Google Calendar</button>
+    </div>
+  </div>
+</div>
+
+<!-- CONFIRM MODAL -->
+<div class="modal-bg" id="confirm-modal">
+  <div class="modal">
+    <div class="modal-header"><h3 id="confirm-title">Confirm</h3><button class="modal-close" onclick="closeModal('confirm-modal')">✕</button></div>
+    <div class="modal-body"><p style="font-size:13px;line-height:1.6;color:var(--text2)" id="confirm-msg"></p></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('confirm-modal')">Cancel</button>
+      <button class="btn btn-primary" id="confirm-ok">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Google API -->
+<script src="https://apis.google.com/js/api.js"></script>
+<script src="https://accounts.google.com/gsi/client"></script>
+
+<script>
+// ============================================================
+//  STATE
+// ============================================================
+var units = [], leads = [], activity = [];
+var sheetId = SHEET_ID_OVERRIDE || '';
+var currentView = 'dashboard';
+var selectedLead = null;
+var editingUnitId = null;
+var currentUserEmail = '';
+var currentUserName = '';
+var tokenClient = null;
+var gapiReady = false;
+var gsiReady = false;
+var accessToken = '';
+
+var STAGES = ['New','Contacted','Toured','Applied','Leased'];
+var SHEET_TABS = { units:'Units', leads:'Leads', activity:'Activity' };
+
+// ============================================================
+//  GOOGLE AUTH & API INIT
+// ============================================================
+function initGapi() {
+  gapi.load('client', function() {
+    gapi.client.init({}).then(function() {
+      gapiReady = true;
+      maybeStart();
+    });
+  });
+}
+
+function initGsi() {
+  tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: CLIENT_ID,
+    scope: SCOPES,
+    callback: function(resp) {
+      if (resp.error) { showToast('Auth error: ' + resp.error); return; }
+      accessToken = resp.access_token;
+      gapi.client.setToken({ access_token: accessToken });
+      // Get user info
+      fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+        headers: { Authorization: 'Bearer ' + accessToken }
+      }).then(function(r){ return r.json(); }).then(function(u){
+        currentUserEmail = u.email || '';
+        currentUserName = u.name || u.email || 'Team Member';
+        document.getElementById('user-name-display').textContent = currentUserName;
+        var ini = currentUserName.split(' ').map(function(n){return n[0]||'';}).join('').slice(0,2).toUpperCase();
+        document.getElementById('user-initials').textContent = ini;
+        afterAuth();
+      });
+    }
+  });
+  gsiReady = true;
+  maybeStart();
+}
+
+function maybeStart() {
+  if (gapiReady && gsiReady) {
+    setLoading(false);
+    // Check if CLIENT_ID is still placeholder
+    if (CLIENT_ID === 'YOUR_GOOGLE_CLIENT_ID_HERE') {
+      document.getElementById('auth-screen').style.display = 'flex';
+      document.querySelector('.auth-sub').textContent = '⚠ Developer setup needed: replace YOUR_GOOGLE_CLIENT_ID_HERE in the file with your Google OAuth Client ID before sharing with your team.';
+      document.querySelector('.btn-google').disabled = true;
+      document.querySelector('.btn-google').style.opacity = '.4';
+      return;
+    }
+    document.getElementById('auth-screen').style.display = 'flex';
+  }
+}
+
+function signIn() {
+  if (!tokenClient) { showToast('Auth not ready, please refresh.'); return; }
+  tokenClient.requestAccessToken({ prompt: 'consent' });
+}
+
+function signOut() {
+  google.accounts.oauth2.revoke(accessToken, function(){});
+  accessToken = '';
+  units = []; leads = []; activity = [];
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('auth-screen').style.display = 'flex';
+  showToast('Signed out.');
+}
+
+// ============================================================
+//  AFTER AUTH — LOAD/CREATE SHEET
+// ============================================================
+async function afterAuth() {
+  setLoading(true, 'Connecting to Google Sheets…');
+  document.getElementById('auth-screen').style.display = 'none';
+  try {
+    if (!sheetId) {
+      sheetId = await findOrCreateSheet();
+      if (SHEET_ID_OVERRIDE === '') {
+        document.getElementById('setup-notice').style.display = 'block';
+        document.getElementById('notice-sheet-id').textContent = sheetId;
+        console.log('SHEET ID (paste into SHEET_ID_OVERRIDE):', sheetId);
+      }
+    }
+    document.getElementById('sheet-link').style.display = 'inline';
+    await ensureSheetTabs();
+    await loadAllData();
+    setLoading(false);
+    document.getElementById('app').style.display = 'flex';
+    showView('dashboard');
+  } catch(e) {
+    console.error(e);
+    setLoading(false);
+    showToast('Error connecting to Sheets: ' + e.message);
+    document.getElementById('auth-screen').style.display = 'flex';
+  }
+}
+
+async function findOrCreateSheet() {
+  // Search Drive for existing sheet
+  if (SHEET_ID_OVERRIDE) return SHEET_ID_OVERRIDE;
+  var searchRes = await gfetch('https://www.googleapis.com/drive/v3/files?q=name%3D%22' + encodeURIComponent(SHEET_TITLE) + '%22%20and%20mimeType%3D%22application%2Fvnd.google-apps.spreadsheet%22%20and%20trashed%3Dfalse&fields=files(id,name)');
+  if (searchRes.files && searchRes.files.length > 0) return searchRes.files[0].id;
+  // Create new sheet
+  var createRes = await gfetch('https://sheets.googleapis.com/v4/spreadsheets', 'POST', {
+    properties: { title: SHEET_TITLE },
+    sheets: [
+      { properties: { title: SHEET_TABS.units } },
+      { properties: { title: SHEET_TABS.leads } },
+      { properties: { title: SHEET_TABS.activity } }
+    ]
+  });
+  return createRes.spreadsheetId;
+}
+
+async function ensureSheetTabs() {
+  var meta = await gfetch('https://sheets.googleapis.com/v4/spreadsheets/' + sheetId + '?fields=sheets.properties');
+  var existing = (meta.sheets || []).map(function(s){ return s.properties.title; });
+  var requests = [];
+  Object.values(SHEET_TABS).forEach(function(tab){
+    if (!existing.includes(tab)) requests.push({ addSheet: { properties: { title: tab } } });
+  });
+  if (requests.length) {
+    await gfetch('https://sheets.googleapis.com/v4/spreadsheets/' + sheetId + ':batchUpdate', 'POST', { requests: requests });
+  }
+  // Write headers if sheets are empty
+  await writeHeadersIfNeeded();
+}
+
+async function writeHeadersIfNeeded() {
+  var uHead = ['ID','Building','Unit','Beds','Rent','Status','Tenant','Available','Notes','LastModifiedBy','LastModifiedAt'];
+  var lHead = ['ID','Name','Email','Phone','Stage','Unit','Beds','Budget','Source','Date','Hot','Notes','LastModifiedBy','LastModifiedAt'];
+  var aHead = ['Type','Text','Time','User'];
+  for (var [tab, head] of [[SHEET_TABS.units,uHead],[SHEET_TABS.leads,lHead],[SHEET_TABS.activity,aHead]]) {
+    var res = await gfetch('https://sheets.googleapis.com/v4/spreadsheets/' + sheetId + '/values/' + encodeURIComponent(tab) + '!A1:Z1');
+    if (!res.values || !res.values.length) {
+      await sheetsWrite(tab + '!A1', [head]);
+    }
+  }
+}
+
+// ============================================================
+//  DATA LOAD FROM SHEETS
+// ============================================================
+async function loadAllData() {
+  setSaveState('saving');
+  var [uRes, lRes, aRes] = await Promise.all([
+    gfetch('https://sheets.googleapis.com/v4/spreadsheets/' + sheetId + '/values/' + encodeURIComponent(SHEET_TABS.units) + '!A:K'),
+    gfetch('https://sheets.googleapis.com/v4/spreadsheets/' + sheetId + '/values/' + encodeURIComponent(SHEET_TABS.leads) + '!A:N'),
+    gfetch('https://sheets.googleapis.com/v4/spreadsheets/' + sheetId + '/values/' + encodeURIComponent(SHEET_TABS.activity) + '!A:D'),
+  ]);
+  units = parseSheetRows(uRes.values, ['id','building','unit','beds','rent','status','tenant','avail','notes','modBy','modAt']).map(function(u){ u.rent = parseInt(u.rent)||0; return u; });
+  leads = parseSheetRows(lRes.values, ['id','name','email','phone','stage','unit','beds','budget','source','date','hot','notes','modBy','modAt']).map(function(l){ l.budget = parseInt(l.budget)||0; l.hot = l.hot==='true'||l.hot===true; l.notes = l.notes ? l.notes.split('|||') : []; return l; });
+  activity = parseSheetRows(aRes.values, ['type','text','time','user']);
+  setSaveState('saved');
+}
+
+function parseSheetRows(values, keys) {
+  if (!values || values.length < 2) return [];
+  return values.slice(1).filter(function(r){ return r && r[0]; }).map(function(r){
+    var obj = {};
+    keys.forEach(function(k,i){ obj[k] = r[i]||''; });
+    return obj;
+  });
+}
+
+// ============================================================
+//  WRITE TO SHEETS
+// ============================================================
+async function syncNow() {
+  showToast('Syncing with Google Sheets…');
+  await loadAllData();
+  renderCurrentView();
+  showToast('Synced successfully.');
+}
+
+async function writeUnitToSheet(unit, isNew) {
+  setSaveState('saving');
+  var row = [unit.id, unit.building, unit.unit, unit.beds, unit.rent, unit.status, unit.tenant, unit.avail, unit.notes, currentUserEmail, new Date().toISOString()];
+  if (isNew) {
+    await sheetsAppend(SHEET_TABS.units, [row]);
+  } else {
+    var rowNum = await findRowById(SHEET_TABS.units, unit.id);
+    if (rowNum) await sheetsWrite(SHEET_TABS.units + '!A' + rowNum, [row]);
+    else await sheetsAppend(SHEET_TABS.units, [row]);
+  }
+  setSaveState('saved');
+}
+
+async function writeLeadToSheet(lead, isNew) {
+  setSaveState('saving');
+  var row = [lead.id, lead.name, lead.email, lead.phone, lead.stage, lead.unit, lead.beds, lead.budget, lead.source, lead.date, lead.hot, lead.notes.join('|||'), currentUserEmail, new Date().toISOString()];
+  if (isNew) {
+    await sheetsAppend(SHEET_TABS.leads, [row]);
+  } else {
+    var rowNum = await findRowById(SHEET_TABS.leads, lead.id);
+    if (rowNum) await sheetsWrite(SHEET_TABS.leads + '!A' + rowNum, [row]);
+    else await sheetsAppend(SHEET_TABS.leads, [row]);
+  }
+  setSaveState('saved');
+}
+
+async function deleteRowFromSheet(tab, id) {
+  setSaveState('saving');
+  var rowNum = await findRowById(tab, id);
+  if (!rowNum) { setSaveState('saved'); return; }
+  var meta = await gfetch('https://sheets.googleapis.com/v4/spreadsheets/' + sheetId + '?fields=sheets.properties');
+  var sheetObj = (meta.sheets||[]).find(function(s){ return s.properties.title === tab; });
+  if (!sheetObj) { setSaveState('saved'); return; }
+  await gfetch('https://sheets.googleapis.com/v4/spreadsheets/' + sheetId + ':batchUpdate', 'POST', {
+    requests: [{ deleteDimension: { range: { sheetId: sheetObj.properties.sheetId, dimension: 'ROWS', startIndex: rowNum-1, endIndex: rowNum } } }]
+  });
+  setSaveState('saved');
+}
+
+async function writeActivity(type, text) {
+  var row = [type, text, new Date().toLocaleString('en-CA'), currentUserName || currentUserEmail];
+  await sheetsAppend(SHEET_TABS.activity, [row]);
+  activity.unshift({ type: type, text: text, time: row[2], user: row[3] });
+  if (activity.length > 50) activity = activity.slice(0, 50);
+}
+
+async function findRowById(tab, id) {
+  var res = await gfetch('https://sheets.googleapis.com/v4/spreadsheets/' + sheetId + '/values/' + encodeURIComponent(tab) + '!A:A');
+  if (!res.values) return null;
+  for (var i = 1; i < res.values.length; i++) {
+    if (res.values[i][0] == id) return i + 1;
+  }
+  return null;
+}
+
+async function sheetsWrite(range, values) {
+  return gfetch('https://sheets.googleapis.com/v4/spreadsheets/' + sheetId + '/values/' + encodeURIComponent(range) + '?valueInputOption=RAW', 'PUT', { range: range, majorDimension: 'ROWS', values: values });
+}
+
+async function sheetsAppend(tab, values) {
+  return gfetch('https://sheets.googleapis.com/v4/spreadsheets/' + sheetId + '/values/' + encodeURIComponent(tab) + '!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', 'POST', { majorDimension: 'ROWS', values: values });
+}
+
+// ============================================================
+//  GENERIC FETCH WRAPPER
+// ============================================================
+async function gfetch(url, method, body) {
+  method = method || 'GET';
+  var opts = { method: method, headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'application/json' } };
+  if (body) opts.body = JSON.stringify(body);
+  var res = await fetch(url, opts);
+  if (res.status === 401) { showToast('Session expired. Please sign in again.'); signOut(); throw new Error('Unauthorised'); }
+  if (!res.ok) { var err = await res.text(); throw new Error(err); }
+  if (res.status === 204) return {};
+  return res.json();
+}
+
+// ============================================================
+//  NAVIGATION
+// ============================================================
+function showView(v) {
+  currentView = v;
+  ['dashboard','units','crm'].forEach(function(vv){
+    var el = document.getElementById('view-' + vv);
+    if (!el) return;
+    el.style.display = vv === v ? (vv === 'crm' ? 'flex' : 'block') : 'none';
+  });
+  document.querySelectorAll('.nav-item').forEach(function(n){ n.classList.remove('active'); });
+  var nid = { dashboard:'nav-dashboard', units:'nav-units', crm:'nav-crm' }[v];
+  if (nid) { var nel = document.getElementById(nid); if (nel) nel.classList.add('active'); }
+  var titles = { dashboard:'Dashboard', units:'Units Inventory', crm:'Lead Pipeline' };
+  document.getElementById('page-title').textContent = titles[v] || v;
+  var btnTxt = { dashboard:'+ Add Unit', units:'+ Add Unit', crm:'+ Add Lead' };
+  document.getElementById('primary-btn').textContent = btnTxt[v] || '+ Add';
+  renderCurrentView();
+}
+
+function renderCurrentView() {
+  if (currentView === 'dashboard') renderDashboard();
+  if (currentView === 'units') { populateBldFilter(); renderUnits(); }
+  if (currentView === 'crm') renderLeads();
+}
+
+function primaryAction() {
+  if (currentView === 'units') openUnitForm(null);
+  else if (currentView === 'crm') addLeadFlow();
+  else { showView('units'); setTimeout(function(){ openUnitForm(null); }, 50); }
+}
+
+function openSheet() {
+  if (sheetId) window.open('https://docs.google.com/spreadsheets/d/' + sheetId, '_blank');
+}
+
+// ============================================================
+//  DASHBOARD
+// ============================================================
+function renderDashboard() {
+  var tot = units.length;
+  var occ = units.filter(function(u){ return u.status==='Occupied'; }).length;
+  var vac = units.filter(function(u){ return u.status==='Vacant'; }).length;
+  var notice = units.filter(function(u){ return u.status==='Notice'; }).length;
+  var pend = units.filter(function(u){ return u.status==='Pending'; }).length;
+  var rev = units.filter(function(u){ return u.status==='Occupied'; }).reduce(function(s,u){ return s + (u.rent||0); }, 0);
+  var activeLeads = leads.filter(function(l){ return l.stage !== 'Leased'; }).length;
+  var hotLeads = leads.filter(function(l){ return l.hot && l.stage !== 'Leased'; }).length;
+  var leased = leads.filter(function(l){ return l.stage === 'Leased'; }).length;
+  var occPct = tot > 0 ? Math.round(occ / tot * 1000) / 10 : 0;
+  var blds = [...new Set(units.map(function(u){ return u.building; }))];
+  document.getElementById('kpi-total').textContent = tot;
+  document.getElementById('kpi-blds').textContent = blds.length + ' building' + (blds.length !== 1 ? 's' : '');
+  document.getElementById('kpi-occ').textContent = occPct + '%';
+  document.getElementById('kpi-occ-sub').textContent = occ + ' of ' + tot + ' occupied';
+  document.getElementById('kpi-rev').textContent = '$' + rev.toLocaleString();
+  document.getElementById('kpi-leads').textContent = activeLeads;
+  document.getElementById('kpi-hot').textContent = hotLeads + ' hot prospect' + (hotLeads !== 1 ? 's' : '');
+  document.getElementById('dash-pipe').innerHTML = STAGES.map(function(s){
+    var cnt = leads.filter(function(l){ return l.stage === s; }).length;
+    return '<div class="pipe-stage"><div class="pipe-num"' + (s==='Leased'?' style="color:var(--green)"':'') + '>' + cnt + '</div><div class="pipe-lbl">' + s + '</div></div>';
+  }).join('');
+  var convPct = leads.length > 0 ? Math.round(leased / leads.length * 100) : 0;
+  document.getElementById('dash-conv').textContent = convPct + '%';
+  document.getElementById('dash-conv-bar').style.width = convPct + '%';
+  var vacRows = [
+    { lbl:'Occupied', cnt:occ, pct:tot>0?Math.round(occ/tot*100):0, color:'var(--green)' },
+    { lbl:'Vacant', cnt:vac, pct:tot>0?Math.round(vac/tot*100):0, color:'var(--red)' },
+    { lbl:'Notice given', cnt:notice, pct:tot>0?Math.round(notice/tot*100):0, color:'var(--blue)' },
+    { lbl:'Pending', cnt:pend, pct:tot>0?Math.round(pend/tot*100):0, color:'var(--amber)' },
+  ];
+  document.getElementById('dash-vac').innerHTML = vacRows.map(function(r){
+    return '<div class="bar-row"><span>' + r.lbl + '</span><div style="display:flex;align-items:center;gap:8px"><span style="font-weight:600;font-size:11px;min-width:16px">' + r.cnt + '</span><div class="bar-track"><div class="bar-fill" style="width:' + r.pct + '%;background:' + r.color + '"></div></div></div></div>';
+  }).join('');
+  document.getElementById('dash-feed').innerHTML = activity.slice(0, 7).map(function(a){
+    return '<div class="feed-item"><div class="feed-dot ' + (a.type||'b') + '"></div><div><div class="feed-text">' + a.text + (a.user?' <span style="color:var(--text3);font-size:9px">— '+a.user+'</span>':'') + '</div><div class="feed-time">' + a.time + '</div></div></div>';
+  }).join('') || '<div style="font-size:12px;color:var(--text3);padding:8px 0">No activity yet.</div>';
+}
+
+// ============================================================
+//  UNITS
+// ============================================================
+function populateBldFilter() {
+  var sel = document.getElementById('u-bld');
+  var cur = sel.value;
+  var blds = [...new Set(units.map(function(u){ return u.building; }))].sort();
+  sel.innerHTML = '<option value="">All Buildings</option>' + blds.map(function(b){ return '<option' + (b===cur?' selected':'') + '>' + b + '</option>'; }).join('');
+}
+
+function openUnitForm(id) {
+  editingUnitId = id;
+  var fp = document.getElementById('unit-form');
+  fp.classList.add('open');
+  document.getElementById('unit-form-title').textContent = id ? 'Edit Unit' : 'Add New Unit';
+  if (id) {
+    var u = units.find(function(x){ return x.id == id; });
+    if (!u) return;
+    document.getElementById('f-bld').value = u.building;
+    document.getElementById('f-unt').value = u.unit;
+    document.getElementById('f-beds').value = u.beds;
+    document.getElementById('f-rent').value = u.rent;
+    document.getElementById('f-stat').value = u.status;
+    document.getElementById('f-ten').value = u.tenant;
+    document.getElementById('f-avl').value = u.avail;
+    document.getElementById('f-note').value = u.notes;
+  } else {
+    ['f-bld','f-unt','f-rent','f-ten','f-avl','f-note'].forEach(function(fid){ document.getElementById(fid).value = ''; });
+    document.getElementById('f-beds').value = '2B';
+    document.getElementById('f-stat').value = 'Vacant';
+  }
+  fp.scrollIntoView({ behavior: 'smooth' });
+}
+
+function closeUnitForm() {
+  document.getElementById('unit-form').classList.remove('open');
+  editingUnitId = null;
+}
+
+async function saveUnit() {
+  var bld = document.getElementById('f-bld').value.trim();
+  var unt = document.getElementById('f-unt').value.trim();
+  if (!bld || !unt) { showToast('Building and unit number are required.'); return; }
+  var isNew = !editingUnitId;
+  var obj = {
+    id: editingUnitId || ('U' + Date.now()),
+    building: bld, unit: unt,
+    beds: document.getElementById('f-beds').value,
+    rent: parseInt(document.getElementById('f-rent').value) || 0,
+    status: document.getElementById('f-stat').value,
+    tenant: document.getElementById('f-ten').value.trim(),
+    avail: document.getElementById('f-avl').value,
+    notes: document.getElementById('f-note').value.trim(),
+  };
+  if (isNew) units.push(obj);
+  else { var idx = units.findIndex(function(u){ return u.id == editingUnitId; }); if (idx >= 0) units[idx] = obj; }
+  closeUnitForm();
+  renderUnits();
+  try {
+    await writeUnitToSheet(obj, isNew);
+    await writeActivity('b', '<strong>Unit ' + (isNew?'added':'updated') + '</strong> — ' + bld + ' Unit ' + unt + ' (' + obj.status + ')');
+    showToast('Saved to Google Sheets ✓');
+  } catch(e) { showToast('Saved locally, Sheets error: ' + e.message); }
+  populateBldFilter();
+}
+
+async function deleteUnit(id) {
+  var u = units.find(function(x){ return x.id == id; });
+  if (!u) return;
+  showConfirm('Delete Unit', 'Delete ' + u.building + ' Unit ' + u.unit + '? This will also delete it from Google Sheets.', async function(){
+    units = units.filter(function(x){ return x.id != id; });
+    renderUnits();
+    try {
+      await deleteRowFromSheet(SHEET_TABS.units, id);
+      await writeActivity('a', '<strong>Unit deleted</strong> — ' + u.building + ' Unit ' + u.unit);
+      showToast('Unit deleted from Google Sheets.');
+    } catch(e) { showToast('Deleted locally, Sheets error: ' + e.message); }
+  });
+}
+
+function renderUnits() {
+  var q = (document.getElementById('u-search').value || '').toLowerCase();
+  var st = document.getElementById('u-stat').value;
+  var bd = document.getElementById('u-bld').value;
+  var filtered = units.filter(function(u){
+    if (st && u.status !== st) return false;
+    if (bd && u.building !== bd) return false;
+    if (q && (u.building + u.unit + u.tenant + u.status + u.notes).toLowerCase().indexOf(q) < 0) return false;
+    return true;
+  });
+  var tb = document.getElementById('u-tbody');
+  if (!tb) return;
+  tb.innerHTML = filtered.length ? filtered.map(function(u){
+    var sc = u.status.toLowerCase();
+    return '<tr>' +
+      '<td style="font-weight:600">' + u.unit + '</td>' +
+      '<td>' + u.building + '</td>' +
+      '<td>' + u.beds + '</td>' +
+      '<td class="mono">$' + (u.rent||0).toLocaleString() + '</td>' +
+      '<td><span class="badge badge-' + sc + '">' + u.status + '</span></td>' +
+      '<td>' + (u.tenant || '<span style="color:var(--text3)">—</span>') + '</td>' +
+      '<td style="color:var(--text3)">' + (u.avail || '—') + '</td>' +
+      '<td style="color:var(--text3);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (u.notes || '') + '</td>' +
+      '<td style="color:var(--text3);font-size:10px">' + (u.modBy || '—') + '</td>' +
+      '<td style="white-space:nowrap"><button class="btn btn-sm" onclick="openUnitForm(\'' + u.id + '\')" style="margin-right:4px">Edit</button><button class="btn btn-sm btn-danger" onclick="deleteUnit(\'' + u.id + '\')">Del</button></td>' +
+    '</tr>';
+  }).join('') : '<tr><td colspan="10" style="text-align:center;padding:32px;color:var(--text3);font-size:12px">No units match your filters.</td></tr>';
+}
+
+// ============================================================
+//  LEADS / CRM
+// ============================================================
+function renderLeads() {
+  var q = (document.getElementById('l-search') ? document.getElementById('l-search').value : '').toLowerCase();
+  var src = document.getElementById('l-src') ? document.getElementById('l-src').value : '';
+  var board = document.getElementById('kanban');
+  if (!board) return;
+  board.innerHTML = '';
+  var srcClass = { 'Web enquiry':'tag-web', 'Referral':'tag-ref', 'Kijiji':'tag-kij', 'Walk-in':'tag-other', 'Other':'tag-other' };
+  STAGES.forEach(function(stage){
+    var sl = leads.filter(function(l){
+      if (l.stage !== stage) return false;
+      if (src && l.source !== src) return false;
+      if (q && (l.name + l.unit + l.email).toLowerCase().indexOf(q) < 0) return false;
+      return true;
+    });
+    var col = document.createElement('div');
+    col.className = 'kanban-col';
+    col.innerHTML = '<div class="kanban-header"><span class="kanban-stage">' + stage + '</span><span class="kanban-count">' + sl.length + '</span></div>' +
+    sl.map(function(l){
+      var sc = srcClass[l.source] || 'tag-other';
+      return '<div class="lead-card' + (selectedLead && selectedLead.id === l.id ? ' selected' : '') + '" onclick="selectLead(\'' + l.id + '\')">' +
+        '<div class="lead-name">' + l.name + '</div>' +
+        '<div class="lead-unit">' + (l.unit || '—') + ' · ' + l.beds + ' · $' + (l.budget||0).toLocaleString() + '/mo</div>' +
+        '<div class="lead-tags"><span class="tag ' + sc + '">' + l.source + '</span>' + (l.hot ? '<span class="tag tag-hot">Hot</span>' : '') + '</div>' +
+        '<div class="lead-date">' + l.date + '</div>' +
+      '</div>';
+    }).join('');
+    board.appendChild(col);
+  });
+}
+
+function selectLead(id) {
+  selectedLead = leads.find(function(l){ return l.id == id; }) || null;
+  var panel = document.getElementById('lead-panel');
+  if (!panel) return;
+  if (!selectedLead) { panel.style.display = 'none'; return; }
+  panel.style.display = 'flex';
+  var ini = selectedLead.name.split(' ').map(function(n){ return n[0]||''; }).join('').slice(0,2).toUpperCase();
+  document.getElementById('p-ava').textContent = ini;
+  document.getElementById('p-name').textContent = selectedLead.name;
+  document.getElementById('p-sub').textContent = selectedLead.stage + ' · ' + (selectedLead.unit || '—');
+  document.getElementById('p-email-to').textContent = selectedLead.name;
+  renderPInfo(); renderPNotes();
+  pTab(document.querySelector('.panel-tab'), 'info');
+  renderLeads();
+  if (document.getElementById('c-guest')) document.getElementById('c-guest').value = selectedLead.name + ' <' + selectedLead.email + '>';
+  if (document.getElementById('c-unit')) document.getElementById('c-unit').value = selectedLead.unit || '';
+}
+
+function renderPInfo() {
+  if (!selectedLead) return;
+  var l = selectedLead;
+  document.getElementById('p-info').innerHTML =
+    '<div class="info-row"><span class="info-label">Email</span><span class="info-value link">' + l.email + '</span></div>' +
+    '<div class="info-row"><span class="info-label">Phone</span><span class="info-value">' + (l.phone||'—') + '</span></div>' +
+    '<div class="info-row"><span class="info-label">Unit interest</span><span class="info-value">' + (l.unit||'—') + '</span></div>' +
+    '<div class="info-row"><span class="info-label">Beds</span><span class="info-value">' + (l.beds||'—') + '</span></div>' +
+    '<div class="info-row"><span class="info-label">Budget</span><span class="info-value">$' + (l.budget||0).toLocaleString() + '/mo</span></div>' +
+    '<div class="info-row"><span class="info-label">Source</span><span class="info-value">' + (l.source||'—') + '</span></div>' +
+    '<div class="info-row"><span class="info-label">Stage</span><span class="info-value">' + l.stage + '</span></div>' +
+    '<div class="info-row"><span class="info-label">Lead date</span><span class="info-value">' + l.date + '</span></div>' +
+    '<div class="info-row"><span class="info-label">Last edited</span><span class="info-value" style="font-size:10px">' + (l.modBy||'—') + '</span></div>' +
+    '<div class="info-row" style="border-bottom:none"><span class="info-label">Hot lead</span><span class="info-value"><input type="checkbox"' + (l.hot?' checked':'') + ' onchange="toggleHot(this.checked)" style="cursor:pointer"></span></div>' +
+    '<div class="stage-btns">' +
+    STAGES.map(function(s){
+      return '<button class="btn btn-sm' + (l.stage===s?' btn-primary':'') + '" onclick="moveLead(\'' + s + '\')">' + s + '</button>';
+    }).join('') + '</div>';
+}
+
+function renderPNotes() {
+  if (!selectedLead) return;
+  var l = selectedLead;
+  var notesHtml = l.notes && l.notes.filter(Boolean).length ?
+    l.notes.filter(Boolean).map(function(n, i){
+      return '<div class="note-item">' + n + '<div class="note-meta">Note ' + (i+1) + '</div></div>';
+    }).join('') :
+    '<div style="font-size:11px;color:var(--text3);padding:4px 0">No notes yet.</div>';
+  document.getElementById('p-notes').innerHTML = notesHtml +
+    '<textarea class="compose-area" id="note-inp" placeholder="Add a note…" style="margin-top:10px"></textarea>' +
+    '<button class="btn btn-primary" style="margin-top:7px;width:100%;font-size:11px" onclick="addNote()">Save Note to Sheets</button>';
+}
+
+async function addNote() {
+  if (!selectedLead) return;
+  var v = document.getElementById('note-inp').value.trim();
+  if (!v) return;
+  if (!Array.isArray(selectedLead.notes)) selectedLead.notes = [];
+  selectedLead.notes.push(v);
+  renderPNotes();
+  try {
+    await writeLeadToSheet(selectedLead, false);
+    showToast('Note saved to Google Sheets ✓');
+  } catch(e) { showToast('Note saved locally, Sheets error: ' + e.message); }
+}
+
+async function toggleHot(val) {
+  if (!selectedLead) return;
+  selectedLead.hot = val;
+  try { await writeLeadToSheet(selectedLead, false); } catch(e) {}
+  renderLeads();
+}
+
+async function moveLead(stage) {
+  if (!selectedLead) return;
+  var old = selectedLead.stage;
+  selectedLead.stage = stage;
+  if (!Array.isArray(selectedLead.notes)) selectedLead.notes = [];
+  selectedLead.notes.push('Stage: ' + old + ' → ' + stage + ' (' + currentUserName + ')');
+  document.getElementById('p-sub').textContent = stage + ' · ' + (selectedLead.unit || '—');
+  renderPInfo(); renderPNotes(); renderLeads();
+  try {
+    await writeLeadToSheet(selectedLead, false);
+    await writeActivity('b', '<strong>Lead moved</strong> — ' + selectedLead.name + ' → ' + stage);
+    showToast(selectedLead.name + ' moved to ' + stage + ' ✓');
+  } catch(e) { showToast('Updated locally, Sheets error: ' + e.message); }
+}
+
+function closePanel() {
+  selectedLead = null;
+  document.getElementById('lead-panel').style.display = 'none';
+  renderLeads();
+}
+
+async function addLeadFlow() {
+  var n = prompt('Lead full name:'); if (!n) return;
+  var e = prompt('Email address:');
+  var p = prompt('Phone number (optional):');
+  var u = prompt('Unit of interest (e.g. SXSW1-308):');
+  var src = prompt('Source? (Web enquiry / Referral / Kijiji / Walk-in / Other):') || 'Web enquiry';
+  var newLead = {
+    id: 'L' + Date.now(), name: n, email: e||'', phone: p||'', stage: 'New',
+    unit: u||'', beds: '', budget: 0, source: src,
+    date: new Date().toLocaleDateString('en-CA', { month:'short', day:'numeric' }),
+    hot: false, notes: []
+  };
+  leads.push(newLead);
+  renderLeads();
+  try {
+    await writeLeadToSheet(newLead, true);
+    await writeActivity('a', '<strong>New lead added</strong> — ' + n + ' (' + src + ')');
+    showToast('Lead added to Google Sheets ✓');
+  } catch(e) { showToast('Lead added locally, Sheets error: ' + e.message); }
+}
+
+// ============================================================
+//  EMAIL TEMPLATES
+// ============================================================
+var TEMPLATES = {
+  showing: { subj: 'Showing Confirmation — {unit}', body: 'Hi {name},\n\nThank you for your interest in {unit}. We are pleased to confirm your showing is booked. Please don\'t hesitate to reach out if you have any questions beforehand.\n\nLooking forward to meeting you.\n\nBest regards,\nSharon Goldberg\nDash Property Management Inc.\n159 Avenue Road, Toronto' },
+  followup: { subj: 'Application Follow-Up — {unit}', body: 'Hi {name},\n\nThank you for submitting your application for {unit}. We are currently reviewing the details and will be in touch very shortly.\n\nBest regards,\nSharon Goldberg\nDash Property Management Inc.' },
+  welcome:  { subj: 'Welcome to Dash Property Management — {unit}', body: 'Hi {name},\n\nWe are thrilled to confirm your tenancy at {unit}. Welcome to the Dash PMT family!\n\nOur team will be in contact shortly with move-in details and key handover logistics.\n\nWarm regards,\nSharon Goldberg\nDash Property Management Inc.' },
+  decline:  { subj: 'Re: Your Application — {unit}', body: 'Hi {name},\n\nThank you for your interest in {unit} and for taking the time to apply. After careful review, we have decided to proceed with another applicant at this time.\n\nWe encourage you to check our listings regularly.\n\nKind regards,\nSharon Goldberg\nDash Property Management Inc.' },
+};
+
+function applyTmpl(k) {
+  if (!k || !selectedLead) return;
+  var t = TEMPLATES[k]; if (!t) return;
+  var u = selectedLead.unit || 'the unit';
+  document.getElementById('e-subj').value = t.subj.replace(/{unit}/g, u).replace(/{name}/g, selectedLead.name);
+  document.getElementById('e-body').value = t.body.replace(/{unit}/g, u).replace(/{name}/g, selectedLead.name);
+}
+
+async function sendEmail() {
+  if (!selectedLead) return;
+  var s = document.getElementById('e-subj').value.trim();
+  var b = document.getElementById('e-body').value.trim();
+  if (!s || !b) { showToast('Add a subject and body first.'); return; }
+  var url = 'https://mail.google.com/mail/?view=cm&fs=1&to=' + encodeURIComponent(selectedLead.email) + '&su=' + encodeURIComponent(s) + '&body=' + encodeURIComponent(b);
+  window.open(url, '_blank');
+  if (!Array.isArray(selectedLead.notes)) selectedLead.notes = [];
+  selectedLead.notes.push('Email sent: "' + s + '" (' + currentUserName + ')');
+  try {
+    await writeLeadToSheet(selectedLead, false);
+    await writeActivity('b', '<strong>Email sent</strong> — ' + s + ' → ' + selectedLead.name);
+  } catch(e) {}
+  renderPNotes();
+  showToast('Opening Gmail draft for ' + selectedLead.name + '…');
+}
+
+// ============================================================
+//  CALENDAR
+// ============================================================
+function openCalModal() {
+  document.getElementById('cal-modal').classList.add('open');
+  var now = new Date(); now.setSeconds(0); now.setMinutes(0); now.setHours(now.getHours()+1);
+  var p = function(n){ return String(n).padStart(2,'0'); };
+  document.getElementById('c-dt').value = now.getFullYear()+'-'+p(now.getMonth()+1)+'-'+p(now.getDate())+'T'+p(now.getHours())+':00';
+}
+
+async function saveCalEvent() {
+  var guest = document.getElementById('c-guest').value.trim();
+  var unit  = document.getElementById('c-unit').value.trim();
+  var dt    = document.getElementById('c-dt').value;
+  if (!guest || !dt) { showToast('Guest and date/time required.'); return; }
+  var dur   = parseInt(document.getElementById('c-dur').value) || 60;
+  var notes = document.getElementById('c-notes').value.trim();
+  var start = new Date(dt);
+  var end   = new Date(start.getTime() + dur * 60000);
+  var fmt   = function(d){ return d.toISOString().replace(/[-:]/g,'').split('.')[0]+'Z'; };
+  var title = 'Property Showing — ' + unit;
+  var calUrl = 'https://calendar.google.com/calendar/render?action=TEMPLATE&text=' + encodeURIComponent(title) + '&dates=' + fmt(start) + '/' + fmt(end) + '&details=' + encodeURIComponent('Showing for: ' + guest + (notes ? '\n\n' + notes : '')) + '&location=' + encodeURIComponent(unit);
+  window.open(calUrl, '_blank');
+  closeModal('cal-modal');
+  document.getElementById('c-notes').value = '';
+  try { await writeActivity('b', '<strong>Showing booked</strong> — ' + unit + ' for ' + guest); } catch(e) {}
+  if (selectedLead && selectedLead.stage === 'New') moveLead('Contacted');
+  showToast('Opening Google Calendar…');
+}
+
+// ============================================================
+//  EXPORT
+// ============================================================
+function exportCSV() {
+  var uHeader = ['ID','Building','Unit','Beds','Rent','Status','Tenant','Available','Notes'];
+  var uRows = units.map(function(u){ return [u.id,u.building,u.unit,u.beds,u.rent,u.status,u.tenant,u.avail,u.notes]; });
+  var lHeader = ['ID','Name','Email','Phone','Stage','Unit','Beds','Budget','Source','Date','Hot','Notes'];
+  var lRows = leads.map(function(l){ return [l.id,l.name,l.email,l.phone,l.stage,l.unit,l.beds,l.budget,l.source,l.date,l.hot,(l.notes||[]).join(' | ')]; });
+  var csv = 'UNITS\n' + [uHeader,...uRows].map(function(r){ return r.map(function(c){ return '"'+(c||'').toString().replace(/"/g,'""')+'"'; }).join(','); }).join('\n');
+  csv += '\n\nLEADS\n' + [lHeader,...lRows].map(function(r){ return r.map(function(c){ return '"'+(c||'').toString().replace(/"/g,'""')+'"'; }).join(','); }).join('\n');
+  var blob = new Blob([csv], { type: 'text/csv' });
+  var a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'dash_pmt_' + new Date().toISOString().slice(0,10) + '.csv'; a.click();
+  showToast('CSV exported.');
+}
+
+// ============================================================
+//  UI HELPERS
+// ============================================================
+function pTab(el, tab) {
+  document.querySelectorAll('.panel-tab').forEach(function(t){ t.classList.remove('active'); });
+  el.classList.add('active');
+  ['info','notes','email'].forEach(function(t){
+    var e = document.getElementById('p-' + t);
+    if (e) e.style.display = t === tab ? 'block' : 'none';
+  });
+}
+
+function showToast(msg) {
+  var t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(function(){ t.classList.remove('show'); }, 3500);
+}
+
+function setSaveState(s) {
+  var dot = document.getElementById('save-dot');
+  var lbl = document.getElementById('save-label');
+  if (s === 'saving') { dot.className = 'save-dot saving'; lbl.textContent = 'Saving to Sheets…'; }
+  else if (s === 'saved') { dot.className = 'save-dot'; lbl.textContent = 'Synced with Sheets'; }
+  else { dot.className = 'save-dot error'; lbl.textContent = 'Sync error'; }
+}
+
+function setLoading(show, msg) {
+  document.getElementById('loading').style.display = show ? 'flex' : 'none';
+  if (msg) document.getElementById('loading-text').textContent = msg;
+}
+
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+function showConfirm(title, msg, cb) {
+  document.getElementById('confirm-title').textContent = title;
+  document.getElementById('confirm-msg').textContent = msg;
+  var ok = document.getElementById('confirm-ok');
+  ok.onclick = function(){ closeModal('confirm-modal'); cb(); };
+  document.getElementById('confirm-modal').classList.add('open');
+}
+
+document.querySelectorAll('.modal-bg').forEach(function(m){
+  m.addEventListener('click', function(e){ if (e.target === this) this.classList.remove('open'); });
+});
+
+// ============================================================
+//  BOOT
+// ============================================================
+window.onload = function() {
+  gapi.load('client', function() {
+    gapi.client.init({}).then(function() {
+      gapiReady = true;
+      maybeStart();
+    }).catch(function(e){ console.error('GAPI init error', e); });
+  });
+};
+
+window.onGoogleLibraryLoad = function() {
+  initGsi();
+};
+</script>
+
+<!-- Load GSI after page is ready -->
+<script async defer src="https://accounts.google.com/gsi/client" onload="typeof initGsi === 'function' && initGsi()"></script>
+
+</body>
+</html>
